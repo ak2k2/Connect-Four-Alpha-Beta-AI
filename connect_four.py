@@ -313,7 +313,7 @@ def human_vs_ai():
             board, game_status = make_move(board, move, HUMAN_PLAYER)
         else:
             print("AI is thinking...")
-            move = AI(board, AI_PLAYER, 4)  # Adjust depth as needed
+            move = AI(board, AI_PLAYER, 10)  # Adjust depth as needed
             board, game_status = make_move(board, move, AI_PLAYER)
             print(f"Ai moves: {move}")
 
@@ -331,36 +331,5 @@ def human_vs_ai():
         print("It's a draw!")
 
 
-# To play the game, just call the function
-human_vs_ai()
-
-
-# # Streamlined Example Usage
-# board = get_blank_board()
-
-# # Making moves and checking for game status
-# moves = [
-#     (0, 1),
-#     (1, -1),
-#     (2, 1),
-#     (3, -1),
-#     (3, 1),
-#     (2, -1),
-#     (1, 1),
-#     (1, -1),
-#     (0, 1),
-#     (0, 1),
-#     (0, -1),
-# ]
-
-# for col, player in moves:
-#     board, status = make_move(board, col, player)
-#     print_board(board)
-#     print(get_legal_moves(board))
-#     print(f"eval: {evaluate(board, AI_PLAYER)}")
-#     if status != 0:
-#         print(f"Player {player} wins!")
-#         break
-
-# # Print the final board state for visualization
-# print_board(board)
+if __name__ == "__main__":
+    human_vs_ai()
