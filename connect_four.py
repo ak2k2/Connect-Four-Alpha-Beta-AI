@@ -1,5 +1,5 @@
-import math
 import copy
+import math
 
 # Constants for the game
 M = 6  # Number of rows
@@ -313,7 +313,7 @@ def human_vs_ai():
             board, game_status = make_move(board, move, HUMAN_PLAYER)
         else:
             print("AI is thinking...")
-            move = AI(board, AI_PLAYER, 10)  # Adjust depth as needed
+            move = AI(board, AI_PLAYER, 5)  # Adjust depth as needed
             board, game_status = make_move(board, move, AI_PLAYER)
             print(f"Ai moves: {move}")
 
