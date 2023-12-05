@@ -8,24 +8,30 @@ IN_A_ROW = 4  # Number of pieces in a row needed to win
 AI_PLAYER = -1  # Representing the AI
 HUMAN_PLAYER = 1  # Representing the human
 
+# red is -1, yellow is 1
+
 
 def get_blank_board():
     return [[0 for _ in range(M)] for _ in range(N)]
 
 
-def in_a_row_met(arr: list):
+def in_a_row_met(arr: list, in_a_row=IN_A_ROW):
+    """
+    if in_a_row=IN_A_ROW streaks mark game over conditions.
+    if in_a_row < IN_A_ROW then steraks can be used to count sequences for evaluation.
+    """
     streakR = 0
     streakY = 0
     for p in arr:
         if p == -1:
             streakY = 0
             streakR += 1
-            if streakR == IN_A_ROW:
+            if streakR == in_a_row:
                 return -1  # Red wins
         elif p == 1:
             streakR = 0
             streakY += 1
-            if streakY == IN_A_ROW:
+            if streakY == in_a_row:
                 return 1  # Yellow wins
         else:
             streakR, streakY = 0, 0
@@ -77,11 +83,11 @@ def game_over_optimized(board, col_idx, row_idx, player):
     Checks if the game is over after a piece is inserted.
     Only checks the row, column, and diagonals affected by the last move.
     """
-    # Check the row
+    # Actually column since were in column major order
     if in_a_row_met(board[col_idx]):
         return player
 
-    # Check the column
+    # Actually row since were in column major order
     col = [board[i][row_idx] for i in range(N)]
     if in_a_row_met(col):
         return player
@@ -158,15 +164,78 @@ def get_legal_moves(board):
     return legal_moves
 
 
+def count_sequnces(arr: list, player: int, seq_len: int):
+    num_seq = 0
+    streak = 0
+    for p in arr:
+        if p == player:
+            streak += 1
+            if streak == seq_len:
+                num_seq += 1
+        else:
+            streak = 0
+    return num_seq
+
+
+def get_diagonals(board):
+    max_col = len(board[0])
+    max_row = len(board)
+    fdiag = [[] for _ in range(max_row + max_col - 1)]
+    bdiag = [[] for _ in range(len(fdiag))]
+    min_bdiag = -max_row + 1
+
+    for x in range(max_col):
+        for y in range(max_row):
+            fdiag[x + y].append(board[y][x])
+            bdiag[x - y - min_bdiag].append(board[y][x])
+
+    return fdiag, bdiag
+
+
+def count_sequences(seq, player, n):
+    count = 0
+    for i in range(len(seq) - n + 1):
+        if seq[i : i + n] == [player] * n:
+            count += 1
+    return count
+
+
+def num_seq_len_n(board, player, n):
+    num_ns = 0
+    # Counting for columns
+    for col in board:
+        num_ns += count_sequences(col, player, n)
+
+    # Counting for rows
+    for row in board:
+        num_ns += count_sequences(row, player, n)
+
+    # Get and count for diagonals
+    fdiag, bdiag = get_diagonals(board)
+    for diag in fdiag + bdiag:
+        num_ns += count_sequences(diag, player, n)
+
+    return num_ns
+
+
 def evaluate(board, player):
     status = brute_force_game_over(board)
-    if status == player:
+    if status == player:  # player wins
         return math.inf
-    elif status != 0:
+    elif status != 0:  # player loses
         return -math.inf
+
+    num_twos = num_seq_len_n(board, 1, 2) - num_seq_len_n(board, -1, 2)
+    num_threes = num_seq_len_n(board, 1, 3) - num_seq_len_n(board, -1, 3)
+    v = int(30 * num_threes + 20 * num_twos)
+    # print(f"num_twos: {num_twos}, num_threes: {num_threes}")
+
     if not get_legal_moves(board):  # Check for draw
-        return 0
-    return 0
+        if v > 0:  # yellow is winning
+            return v - 10  # avoid taking a draw when winning
+        else:  # red is winning
+            return v + 10  # avoid taking a draw when winning
+    return v
 
 
 def minimax(board, depth, alpha, beta, maximizingPlayer):
@@ -215,6 +284,10 @@ def AI(board, player, depth):
         elif player == HUMAN_PLAYER and boardValue < bestValue:
             bestValue = boardValue
             bestMove = move
+
+    if bestMove is None:
+        print("Ai couldnt find a move. likely due to a 0 eval on all moves")
+        return get_legal_moves(board)[0]  # failsafe
     return bestMove
 
 
@@ -226,8 +299,8 @@ def human_vs_ai():
     game_status = 0  # 0 means the game is ongoing
 
     while game_status == 0 and get_legal_moves(board):
+        game_status = brute_force_game_over(board)
         print_board(board)
-
         if current_player == HUMAN_PLAYER:
             move = None
             while move not in get_legal_moves(board):
@@ -241,13 +314,8 @@ def human_vs_ai():
         else:
             print("AI is thinking...")
             move = AI(board, AI_PLAYER, 4)  # Adjust depth as needed
-            # move = 3
-            if move is not None:
-                board, game_status = make_move(board, move, AI_PLAYER)
-                print(f"Ai moves: {move}")
-            else:
-                print("AI couldn't find a valid move.")
-                game_status = -1
+            board, game_status = make_move(board, move, AI_PLAYER)
+            print(f"Ai moves: {move}")
 
         # Switch player
         current_player = AI_PLAYER if current_player == HUMAN_PLAYER else HUMAN_PLAYER
@@ -289,16 +357,10 @@ human_vs_ai()
 #     board, status = make_move(board, col, player)
 #     print_board(board)
 #     print(get_legal_moves(board))
+#     print(f"eval: {evaluate(board, AI_PLAYER)}")
 #     if status != 0:
 #         print(f"Player {player} wins!")
 #         break
 
 # # Print the final board state for visualization
-# print_board(board)
-
-# board = get_blank_board()
-# print_board(board)
-# boad, game_status = make_move(board, 4, 1)
-# print_board(board)
-# boad, game_status = make_move(board, 4, 0)
 # print_board(board)
