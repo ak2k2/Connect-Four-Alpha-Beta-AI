@@ -1,7 +1,12 @@
+import math
+import copy
+
 # Constants for the game
 M = 6  # Number of rows
 N = 7  # Number of columns
 IN_A_ROW = 4  # Number of pieces in a row needed to win
+AI_PLAYER = -1  # Representing the AI
+HUMAN_PLAYER = 1  # Representing the human
 
 
 def get_blank_board():
@@ -96,6 +101,41 @@ def game_over_optimized(board, col_idx, row_idx, player):
     return 0  # Game continues
 
 
+def brute_force_game_over(board):  # this is slow
+    max_col = M
+    max_row = N
+    cols = [[] for _ in range(max_col)]
+    rows = [[] for _ in range(max_row)]
+    fdiag = [[] for _ in range(max_row + max_col - 1)]
+    bdiag = [[] for _ in range(len(fdiag))]
+    min_bdiag = -max_row + 1
+
+    for x in range(max_col):
+        for y in range(max_row):
+            cols[x].append(board[y][x])
+            rows[y].append(board[y][x])
+            fdiag[x + y].append(board[y][x])
+            bdiag[x - y - min_bdiag].append(board[y][x])
+
+    gfd = [d for d in fdiag if len(d) >= 4] + [d for d in bdiag if len(d) >= 4]
+
+    rows = []
+    for j in range(len(board[0])):
+        row = []
+        for i in range(len(board)):
+            row.append(board[i][j])
+        rows.append(row)
+
+    # Check each row, column, and diagonal
+    for collection in [rows, board, gfd]:
+        for line in collection:
+            status = in_a_row_met(line)
+            if status != 0:
+                return status
+
+    return 0
+
+
 def make_move(board: list, col_num: int, player: int):
     """
     Makes a move for the given player in the specified column.
@@ -118,108 +158,115 @@ def get_legal_moves(board):
     return legal_moves
 
 
-def evaluate_board(board):
-    # Check for win/loss
-    for col in range(N):
-        for row in range(M):
-            if board[col][row] != 0:
-                # Check if the current player has a winning move
-                if game_over_optimized(board, col, row, board[col][row]):
-                    return 100 if board[col][row] == 1 else -100
+def evaluate(board, player):
+    status = brute_force_game_over(board)
+    if status == player:
+        return math.inf
+    elif status != 0:
+        return -math.inf
+    if not get_legal_moves(board):  # Check for draw
+        return 0
     return 0
 
 
-def minimax(board, depth, is_maximizing_player, alpha, beta):
-    legal_moves = get_legal_moves(board)
-    game_result = evaluate_board(board)
+def minimax(board, depth, alpha, beta, maximizingPlayer):
+    game_over_status = brute_force_game_over(board)
+    if depth == 0 or game_over_status != 0 or not get_legal_moves(board):
+        return evaluate(board, AI_PLAYER if maximizingPlayer else HUMAN_PLAYER)
 
-    # Base case: game over or depth limit reached
-    if game_result != 0 or depth == 0 or not legal_moves:
-        return game_result
-
-    if is_maximizing_player:
-        max_eval = float("-inf")
-        for col in legal_moves:
-            new_board, _, row_idx = insert_piece_optimized(
-                board.copy(), col, 1
-            )  # AI is 1
-            eval = minimax(new_board, depth - 1, False, alpha, beta)
-            max_eval = max(max_eval, eval)
+    if maximizingPlayer:
+        maxEval = -math.inf
+        for move in get_legal_moves(board):
+            sim_board = copy.deepcopy(board)
+            sim_board, _ = make_move(sim_board, move, AI_PLAYER)
+            eval = minimax(sim_board, depth - 1, alpha, beta, False)
+            maxEval = max(maxEval, eval)
             alpha = max(alpha, eval)
             if beta <= alpha:
                 break
-        return max_eval
+        return maxEval
     else:
-        min_eval = float("inf")
-        for col in legal_moves:
-            new_board, _, row_idx = insert_piece_optimized(
-                board.copy(), col, -1
-            )  # Opponent is -1
-            eval = minimax(new_board, depth - 1, True, alpha, beta)
-            min_eval = min(min_eval, eval)
+        minEval = math.inf
+        for move in get_legal_moves(board):
+            sim_board = copy.deepcopy(board)
+            sim_board, _ = make_move(sim_board, move, HUMAN_PLAYER)
+            eval = minimax(sim_board, depth - 1, alpha, beta, True)
+            minEval = min(minEval, eval)
             beta = min(beta, eval)
             if beta <= alpha:
                 break
-        return min_eval
+        return minEval
 
 
-def find_best_move(board, depth, ai_player):
-    best_move = None
-    best_score = float("-inf")
-    alpha = float("-inf")
-    beta = float("inf")
+def AI(board, player, depth):
+    bestMove = None
+    bestValue = -math.inf if player == AI_PLAYER else math.inf
+    for move in get_legal_moves(board):
+        # Use a deep copy of the board for simulation
+        sim_board = copy.deepcopy(board)
+        sim_board, _ = make_move(sim_board, move, player)
+        boardValue = minimax(
+            sim_board, depth - 1, -math.inf, math.inf, player == HUMAN_PLAYER
+        )
 
-    for col in get_legal_moves(board):
-        temp_board = [row[:] for row in board]  # Create a copy of the board
-        temp_board, _, _ = insert_piece_optimized(temp_board, col, ai_player)
-        move_eval = minimax(temp_board, depth - 1, False, alpha, beta)
-
-        if move_eval > best_score:
-            best_score = move_eval
-            best_move = col
-
-    return best_move
+        if player == AI_PLAYER and boardValue > bestValue:
+            bestValue = boardValue
+            bestMove = move
+        elif player == HUMAN_PLAYER and boardValue < bestValue:
+            bestValue = boardValue
+            bestMove = move
+    return bestMove
 
 
 def human_vs_ai():
     board = get_blank_board()
-    game_over = False
-    ai_player = 1  # Let's assume AI plays as '1' (Yellow)
-    human_player = -1  # Human plays as '-1' (Red)
+    current_player = (
+        HUMAN_PLAYER  # Start with human; can be changed to AI_PLAYER to let AI start
+    )
+    game_status = 0  # 0 means the game is ongoing
 
-    while not game_over:
-        # Print current board
+    while game_status == 0 and get_legal_moves(board):
         print_board(board)
 
-        # Human's Turn
-        human_move = int(
-            input("Your move (0-6): ")
-        )  # Assuming 0 to 6 are valid column inputs
-        board, _, _ = insert_piece_optimized(board, human_move, human_player)
-        game_status = evaluate_board(board)
-        if game_status != 0:
-            print(
-                "Congratulations! You've won!"
-                if game_status == -100
-                else "It's a draw!"
-            )
-            break
+        if current_player == HUMAN_PLAYER:
+            move = None
+            while move not in get_legal_moves(board):
+                try:
+                    user_input = input("Your move (A-G): ").strip().upper()
+                    move = "ABCDEFG".index(user_input)
+                except (ValueError, IndexError):
+                    print("Invalid move. Please choose a column from A to G.")
 
-        # AI's Turn
-        print("AI is making its move...")
-        ai_move = find_best_move(board, 1000, ai_player)  # Adjust depth as needed
-        board, _, _ = insert_piece_optimized(board, ai_move, ai_player)
-        print_board(board)
-        game_status = evaluate_board(board)
-        if game_status != 0:
-            print("AI wins!" if game_status == 100 else "It's a draw!")
-            break
+            board, game_status = make_move(board, move, HUMAN_PLAYER)
+        else:
+            print("AI is thinking...")
+            move = AI(board, AI_PLAYER, 4)  # Adjust depth as needed
+            # move = 3
+            if move is not None:
+                board, game_status = make_move(board, move, AI_PLAYER)
+                print(f"Ai moves: {move}")
+            else:
+                print("AI couldn't find a valid move.")
+                game_status = -1
 
-    # Print the final board state
+        # Switch player
+        current_player = AI_PLAYER if current_player == HUMAN_PLAYER else HUMAN_PLAYER
+
     print_board(board)
 
+    # Declare the result
+    if game_status == HUMAN_PLAYER:
+        print("Congratulations! You win!")
+    elif game_status == AI_PLAYER:
+        print("AI wins. Better luck next time!")
+    else:
+        print("It's a draw!")
 
+
+# To play the game, just call the function
 human_vs_ai()
+
+
 # # Streamlined Example Usage
 # board = get_blank_board()
 
@@ -235,7 +282,7 @@ human_vs_ai()
 #     (1, -1),
 #     (0, 1),
 #     (0, 1),
-#     (0, 1),
+#     (0, -1),
 # ]
 
 # for col, player in moves:
@@ -247,4 +294,11 @@ human_vs_ai()
 #         break
 
 # # Print the final board state for visualization
+# print_board(board)
+
+# board = get_blank_board()
+# print_board(board)
+# boad, game_status = make_move(board, 4, 1)
+# print_board(board)
+# boad, game_status = make_move(board, 4, 0)
 # print_board(board)

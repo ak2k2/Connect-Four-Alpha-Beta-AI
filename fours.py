@@ -43,16 +43,6 @@ def get_blank_board():
     return [[0 for i in range(M)] for j in range(N)]
 
 
-def get_rows(board: list) -> list:
-    rows = []
-    for j in range(len(board[0])):
-        row = []
-        for i in range(len(board)):
-            row.append(board[i][j])
-        rows.append(row)
-    return rows
-
-
 def insert_piece(board: list, col_num: int, player: int):
     col = board[col_num]
     for i in range(M - 1, -1, -1):
@@ -104,27 +94,46 @@ def get_valid_diagonals(board: list):
 
 
 def game_over(board):
-    gfd = get_valid_diagonals(board)
-    rows = get_rows(board)
+    max_col = M
+    max_row = N
+    cols = [[] for _ in range(max_col)]
+    rows = [[] for _ in range(max_row)]
+    fdiag = [[] for _ in range(max_row + max_col - 1)]
+    bdiag = [[] for _ in range(len(fdiag))]
+    min_bdiag = -max_row + 1
+
+    for x in range(max_col):
+        for y in range(max_row):
+            cols[x].append(board[y][x])
+            rows[y].append(board[y][x])
+            fdiag[x + y].append(board[y][x])
+            bdiag[x - y - min_bdiag].append(board[y][x])
+
+    gfd = [d for d in fdiag if len(d) >= 4] + [d for d in bdiag if len(d) >= 4]
+
+    rows = []
+    for j in range(len(board[0])):
+        row = []
+        for i in range(len(board)):
+            row.append(board[i][j])
+        rows.append(row)
 
     # Check each row, column, and diagonal
     for collection in [rows, board, gfd]:
         for line in collection:
             status = in_a_row_met(line)
             if status != 0:
-                print("WINNER")
                 return status
 
-    print("No winner")
     return 0
 
 
-board = get_blank_board()
-board = insert_piece(board, 0, 1)
-board = insert_piece(board, 1, 1)
-board = insert_piece(board, 2, 1)
-game_over(board)
+# board = get_blank_board()
+# board = insert_piece(board, 0, 1)
+# board = insert_piece(board, 1, 1)
+# board = insert_piece(board, 2, 1)
+# game_over(board)
 
-board = insert_piece(board, 3, 1)
-game_over(board)
-print_board(board)
+# board = insert_piece(board, 3, 1)
+# game_over(board)
+# print_board(board)
