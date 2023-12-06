@@ -5,7 +5,7 @@ import pathlib
 # Add the parent directory to the path so we can import connect_four
 sys.path.append(str(pathlib.Path(__file__).parent.parent))
 
-from connect_four import *
+from game import *
 
 # Streamlined Example Usage
 board = get_blank_board()
