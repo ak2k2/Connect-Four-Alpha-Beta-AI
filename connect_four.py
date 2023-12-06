@@ -1,14 +1,20 @@
 import copy
 import math
+import random
 
 # Constants for the game
-M = 6  # Number of rows
-N = 7  # Number of columns
+M = 7  # Number of rows
+N = 8  # Number of columns
 IN_A_ROW = 4  # Number of pieces in a row needed to win
-AI_PLAYER = -1  # Representing the AI
-HUMAN_PLAYER = 1  # Representing the human
 
-# red is -1, yellow is 1
+# Constants for players
+AI_PLAYER = 1  # Representing the AI
+HUMAN_PLAYER = -1  # Representing the human
+
+"""
+RED is -1
+YELLOW is +1
+"""
 
 
 def get_blank_board():
@@ -40,13 +46,20 @@ def in_a_row_met(arr: list, in_a_row=IN_A_ROW):
 
 def print_board(board):
     rows, cols = M, N  # Dimensions of the board
-    col_labels = "ABCDEFG"  # Column labels
+    files = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    col_labels = files[:cols]  # Labels for the columns
 
-    # Mapping of values to display characters
+    # ANSI color codes
+    ANSI_RED = "\033[91m"
+    ANSI_YELLOW = "\033[93m"
+    ANSI_RESET = "\033[0m"
+    ANSI_WHITE = "\033[97m"
+
+    # Mapping of values to display characters with colors
     display_mapping = {
-        -1: "R",  # Red piece
+        -1: ANSI_RED + "R" + ANSI_RESET,  # Red piece
         0: " ",  # Empty space
-        1: "Y",  # Yellow piece
+        1: ANSI_YELLOW + "Y" + ANSI_RESET,  # Yellow piece
     }
 
     # Print column labels
@@ -59,11 +72,10 @@ def print_board(board):
     for row in range(rows):
         # Print each cell in the row
         for col in range(cols):
-            print("| " + display_mapping[board[col][row]] + " ", end="")
+            cell_value = display_mapping[board[col][row]]
+            print(f"| {cell_value} ", end="")
         print("|")  # End of row
         print("+" + "---+" * cols)  # Bottom border of each cell
-
-    print()
 
 
 def insert_piece_optimized(board: list, col_num: int, player: int):
@@ -156,6 +168,13 @@ def make_move(board: list, col_num: int, player: int):
     return board, status
 
 
+def make_move_minimax(board: list, col_num: int, player: int):
+    # Insert the piece and get the row index where it was placed
+    board, col_num, row_idx = insert_piece_optimized(board, col_num, player)
+
+    return board, col_num, row_idx
+
+
 def get_legal_moves(board):
     legal_moves = []
     for col_index in range(N):  # Iterate through each column
@@ -218,37 +237,104 @@ def num_seq_len_n(board, player, n):
     return num_ns
 
 
-def evaluate(board, player):
+def count_center_pieces(board, player):
+    center_col = N // 2
+    left = center_col - 1
+    right = center_col + 1
+
+    center = sum(1 for row in board[center_col] if row == player)
+    left = sum(1 for row in board[left] if row == player)
+    right = sum(1 for row in board[right] if row == player)
+
+    return (4 * center) + 3 * (left + right)
+
+
+def count_x_shapes(board, player):
+    count = 0
+    for i in range(N - 1):
+        for j in range(M - 1):
+            if all(board[i + k][j + k] == player for k in range(2)) and all(
+                board[i + k][j + 1 - k] == player for k in range(2)
+            ):
+                count += 1
+    return count
+
+
+def evaluate(board, player, depth_reached=0):
     status = brute_force_game_over(board)
-    if status == player:  # player wins
-        return math.inf
-    elif status != 0:  # player loses
-        return -math.inf
+
+    num_total_pieces = sum(1 for col in board for row in col if row != 0)
+
+    if status != 0:  # the game was won
+        return (
+            math.inf * status
+        )  # if player is max player and they won then status is 1. if they lost then status is -1.
 
     num_twos = num_seq_len_n(board, 1, 2) - num_seq_len_n(board, -1, 2)
     num_threes = num_seq_len_n(board, 1, 3) - num_seq_len_n(board, -1, 3)
-    v = int(30 * num_threes + 20 * num_twos)
+
+    # bottom_center_preference = sum(
+    #     1
+    #     for i in range(N)
+    #     for j in range(M)
+    #     if board[i][j] == player
+    #     and abs(i - N // 2) + abs(j - M // 2) < 2  # players bottom center pieces
+    # ) - sum(
+    #     1
+    #     for i in range(N)
+    #     for j in range(M)
+    #     if board[i][j] == -player
+    #     and abs(i - N // 2) + abs(j - M // 2) < 2  # opponents bottom center pieces
+    # )
+
+    center_pieces = count_center_pieces(board, 1) - count_center_pieces(board, -1)
+
+    # x_shapes = count_x_shapes(board, 1) - count_x_shapes(board, -1)
+
+    v = int(
+        (50 * num_threes)
+        + (30 * num_twos)
+        + (15 * center_pieces)
+        # + (10 * bottom_center_preference * min(M * N - num_total_pieces, 0))
+        # + (100 * x_shapes)
+        + random.randint(-5, 5)
+    )
+
     # print(f"num_twos: {num_twos}, num_threes: {num_threes}")
 
     if not get_legal_moves(board):  # Check for draw
         if v > 0:  # yellow is winning
             return v - 10  # avoid taking a draw when winning
-        else:  # red is winning
+        elif v < 0:  # red is winning
             return v + 10  # avoid taking a draw when winning
+        else:
+            return 0
     return v
 
 
-def minimax(board, depth, alpha, beta, maximizingPlayer):
+def minimax(board, depth, alpha, beta, maximizingPlayer, depth_reached=0):
+    depth_reached += 1
     game_over_status = brute_force_game_over(board)
-    if depth == 0 or game_over_status != 0 or not get_legal_moves(board):
-        return evaluate(board, AI_PLAYER if maximizingPlayer else HUMAN_PLAYER)
+    if (
+        depth == 0
+        or game_over_status != 0
+        or not get_legal_moves(board)
+        or not get_legal_moves(board)
+    ):
+        return evaluate(
+            board,
+            AI_PLAYER if maximizingPlayer else HUMAN_PLAYER,
+            depth_reached=depth_reached,
+        )
 
     if maximizingPlayer:
         maxEval = -math.inf
         for move in get_legal_moves(board):
             sim_board = copy.deepcopy(board)
             sim_board, _ = make_move(sim_board, move, AI_PLAYER)
-            eval = minimax(sim_board, depth - 1, alpha, beta, False)
+            eval = minimax(
+                sim_board, depth - 1, alpha, beta, False, depth_reached=depth_reached
+            )
             maxEval = max(maxEval, eval)
             alpha = max(alpha, eval)
             if beta <= alpha:
@@ -259,7 +345,9 @@ def minimax(board, depth, alpha, beta, maximizingPlayer):
         for move in get_legal_moves(board):
             sim_board = copy.deepcopy(board)
             sim_board, _ = make_move(sim_board, move, HUMAN_PLAYER)
-            eval = minimax(sim_board, depth - 1, alpha, beta, True)
+            eval = minimax(
+                sim_board, depth - 1, alpha, beta, True, depth_reached=depth_reached
+            )
             minEval = min(minEval, eval)
             beta = min(beta, eval)
             if beta <= alpha:
@@ -269,8 +357,15 @@ def minimax(board, depth, alpha, beta, maximizingPlayer):
 
 def AI(board, player, depth):
     bestMove = None
-    bestValue = -math.inf if player == AI_PLAYER else math.inf
-    for move in get_legal_moves(board):
+    bestValue = -math.inf if player == 1 else math.inf
+    legal_moves = get_legal_moves(board)
+    # order moves by best to worst using the heuristic
+    legal_moves.sort(
+        key=lambda x: evaluate(make_move(copy.deepcopy(board), x, player)[0], player),
+        reverse=player == 1,  # descending for max player and ascending for min player
+    )
+
+    for move in legal_moves:
         # Use a deep copy of the board for simulation
         sim_board = copy.deepcopy(board)
         sim_board, _ = make_move(sim_board, move, player)
@@ -278,10 +373,14 @@ def AI(board, player, depth):
             sim_board, depth - 1, -math.inf, math.inf, player == HUMAN_PLAYER
         )
 
-        if player == AI_PLAYER and boardValue > bestValue:
+        if player == AI_PLAYER and (
+            (boardValue > bestValue) if AI_PLAYER == 1 else (boardValue < bestValue)
+        ):
             bestValue = boardValue
             bestMove = move
-        elif player == HUMAN_PLAYER and boardValue < bestValue:
+        elif player == HUMAN_PLAYER and (
+            (boardValue < bestValue) if HUMAN_PLAYER == -1 else boardValue > bestValue
+        ):
             bestValue = boardValue
             bestMove = move
 
@@ -291,34 +390,38 @@ def AI(board, player, depth):
     return bestMove
 
 
-def human_vs_ai():
+def human_vs_ai(who_moves_first=HUMAN_PLAYER, max_depth=5):
+    files = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
     board = get_blank_board()
-    current_player = (
-        HUMAN_PLAYER  # Start with human; can be changed to AI_PLAYER to let AI start
-    )
+    current_player = who_moves_first
     game_status = 0  # 0 means the game is ongoing
 
     while game_status == 0 and get_legal_moves(board):
-        game_status = brute_force_game_over(board)
         print_board(board)
+        game_status = brute_force_game_over(board)
         if current_player == HUMAN_PLAYER:
             move = None
             while move not in get_legal_moves(board):
                 try:
-                    user_input = input("Your move (A-G): ").strip().upper()
-                    move = "ABCDEFG".index(user_input)
+                    print()
+                    user_input = (
+                        input(f"Your move (A-{files[N - 1]}): ").strip().upper()
+                    )
+                    move = files.index(user_input)
                 except (ValueError, IndexError):
                     print("Invalid move. Please choose a column from A to G.")
 
             board, game_status = make_move(board, move, HUMAN_PLAYER)
         else:
-            print("AI is thinking...")
-            move = AI(board, AI_PLAYER, 5)  # Adjust depth as needed
+            print("\nAI is thinking...")
+            move = AI(board, AI_PLAYER, max_depth)  # Adjust depth as needed
             board, game_status = make_move(board, move, AI_PLAYER)
-            print(f"Ai moves: {move}")
+            print(f"AI moved: {list('ABCDEFG')[move]}")
 
         # Switch player
         current_player = AI_PLAYER if current_player == HUMAN_PLAYER else HUMAN_PLAYER
+        print(f"EVAL AI: ", evaluate(board, AI_PLAYER))
+        print("-----------------------------------")
 
     print_board(board)
 
