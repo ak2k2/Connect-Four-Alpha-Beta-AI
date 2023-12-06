@@ -21,26 +21,22 @@ def get_blank_board():
     return [[0 for _ in range(M)] for _ in range(N)]
 
 
-def in_a_row_met(arr: list, in_a_row=IN_A_ROW):
+def in_a_row_met(arr: list, in_a_row=4):
     """
-    if in_a_row=IN_A_ROW streaks mark game over conditions.
-    if in_a_row < IN_A_ROW then steraks can be used to count sequences for evaluation.
+    Check if there are 'in_a_row' consecutive pieces from the same player.
+    Return -1 for red wins, 1 for yellow wins, or 0 for no win.
     """
-    streakR = 0
-    streakY = 0
+    streak = 0
+    last_player = 0
+
     for p in arr:
-        if p == -1:
-            streakY = 0
-            streakR += 1
-            if streakR == in_a_row:
-                return -1  # Red wins
-        elif p == 1:
-            streakR = 0
-            streakY += 1
-            if streakY == in_a_row:
-                return 1  # Yellow wins
+            streak += 1
+            if streak == in_a_row:
+                return p  # Current player wins
         else:
-            streakR, streakY = 0, 0
+            streak = 1 if p != 0 else 0
+            last_player = p
+
     return 0  # No one wins
 
 
@@ -110,16 +106,24 @@ def game_over_optimized(board, col_idx, row_idx, player):
     if in_a_row_met(col):
         return player
 
-    # Check diagonals
-    fdiag, bdiag = [], []
-    for i in range(N):
-        for j in range(M):
-            if i + j == col_idx + row_idx:
-                fdiag.append(board[i][j])
-            if i - j == col_idx - row_idx:
-                bdiag.append(board[i][j])
+    # Check forward diagonal
+    fdiag = [
+        board[i][j]
+        for i in range(len(board))
+        for j in range(len(board[i]))
+        if i + j == col_idx + row_idx
+    ]
+    if in_a_row_met(fdiag):
+        return player
 
-    if in_a_row_met(fdiag) or in_a_row_met(bdiag):
+    # Check backward diagonal
+    bdiag = [
+        board[i][j]
+        for i in range(len(board))
+        for j in range(len(board[i]))
+        if i - j == col_idx - row_idx
+    ]
+    if in_a_row_met(bdiag):
         return player
 
     return 0  # Game continues
@@ -171,32 +175,12 @@ def make_move(board: list, col_num: int, player: int):
     return board, status
 
 
-def make_move_minimax(board: list, col_num: int, player: int):
-    # Insert the piece and get the row index where it was placed
-    board, col_num, row_idx = insert_piece_optimized(board, col_num, player)
-
-    return board, col_num, row_idx
-
-
 def get_legal_moves(board):
     legal_moves = []
     for col_index in range(N):  # Iterate through each column
         if board[col_index][0] == 0:  # Check if the top cell of the column is empty
             legal_moves.append(col_index)  # If empty, it's a legal move
     return legal_moves
-
-
-def count_sequnces(arr: list, player: int, seq_len: int):
-    num_seq = 0
-    streak = 0
-    for p in arr:
-        if p == player:
-            streak += 1
-            if streak == seq_len:
-                num_seq += 1
-        else:
-            streak = 0
-    return num_seq
 
 
 def get_diagonals(board):
@@ -372,7 +356,7 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, depth_reached=0):
     if maximizingPlayer:
         maxEval = -math.inf
         for move in legal_moves:
-            sim_board, col_idx, row_idx = make_move_minimax(
+            sim_board, col_idx, row_idx = insert_piece_optimized(
                 board, move, 1
             )  # Max player is always 1
             eval = minimax(
@@ -387,7 +371,7 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, depth_reached=0):
     else:
         minEval = math.inf
         for move in legal_moves:
-            sim_board, col_idx, row_idx = make_move_minimax(
+            sim_board, col_idx, row_idx = insert_piece_optimized(
                 board, move, -1
             )  # Min player is always -1
             eval = minimax(
