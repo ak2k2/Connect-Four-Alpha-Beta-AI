@@ -95,6 +95,12 @@ def game_over_optimized(board, col_idx, row_idx, player):
     Checks if the game is over after a piece is inserted.
     Only checks the row, column, and diagonals affected by the last move.
     """
+    # num total pieces
+    num_total_pieces = sum(1 for col in board for row in col if row != 0)
+
+    if num_total_pieces < 7:  # no need to check for game over
+        return 0
+
     # Actually column since were in column major order
     if in_a_row_met(board[col_idx]):
         return player
@@ -119,37 +125,34 @@ def game_over_optimized(board, col_idx, row_idx, player):
     return 0  # Game continues
 
 
-def brute_force_game_over(board):  # this is slow
-    max_col = M
-    max_row = N
-    cols = [[] for _ in range(max_col)]
-    rows = [[] for _ in range(max_row)]
-    fdiag = [[] for _ in range(max_row + max_col - 1)]
-    bdiag = [[] for _ in range(len(fdiag))]
-    min_bdiag = -max_row + 1
+def brute_force_game_over(board):
+    num_total_pieces = sum(1 for row in board for cell in row if cell != 0)
+    if num_total_pieces < 7:  # Assuming 7 is the minimum number to check for game over
+        return 0
 
-    for x in range(max_col):
-        for y in range(max_row):
-            cols[x].append(board[y][x])
-            rows[y].append(board[y][x])
-            fdiag[x + y].append(board[y][x])
-            bdiag[x - y - min_bdiag].append(board[y][x])
+    max_row, max_col = len(board), len(board[0])
 
-    gfd = [d for d in fdiag if len(d) >= 4] + [d for d in bdiag if len(d) >= 4]
+    # Check rows and columns
+    for r in range(max_row):
+        for c in range(max_col - 3):
+            if in_a_row_met([board[r][c + i] for i in range(4)]):
+                return board[r][c]
 
-    rows = []
-    for j in range(len(board[0])):
-        row = []
-        for i in range(len(board)):
-            row.append(board[i][j])
-        rows.append(row)
+    for c in range(max_col):
+        for r in range(max_row - 3):
+            if in_a_row_met([board[r + i][c] for i in range(4)]):
+                return board[r][c]
 
-    # Check each row, column, and diagonal
-    for collection in [rows, board, gfd]:
-        for line in collection:
-            status = in_a_row_met(line)
-            if status != 0:
-                return status
+    # Check diagonals
+    for r in range(max_row - 3):
+        for c in range(max_col - 3):
+            # Check forward diagonal
+            if in_a_row_met([board[r + i][c + i] for i in range(4)]):
+                return board[r][c]
+
+            # Check backward diagonal
+            if in_a_row_met([board[r + 3 - i][c + i] for i in range(4)]):
+                return board[r + 3][c]
 
     return 0
 
@@ -249,15 +252,42 @@ def count_center_pieces(board, player):
     return (4 * center) + 3 * (left + right)
 
 
-def count_x_shapes(board, player):
-    count = 0
-    for i in range(N - 1):
-        for j in range(M - 1):
-            if all(board[i + k][j + k] == player for k in range(2)) and all(
-                board[i + k][j + 1 - k] == player for k in range(2)
-            ):
-                count += 1
-    return count
+def count_shapes(board, player):
+    N, M = len(board), len(board[0])
+    l_count, plus_count = 0, 0
+
+    # Check for L shape in various subgrid sizes
+    def check_l_shape(subgrid):
+        # Check each corner for L shape
+        corners = [(0, 0), (0, -1), (-1, 0), (-1, -1)]
+        for corner in corners:
+            if all(
+                subgrid[corner[0]][i] == player for i in range(len(subgrid))
+            ) and all(subgrid[i][corner[1]] == player for i in range(len(subgrid))):
+                return True
+        return False
+
+    # Check for plus shape in 3x3 subgrid
+    def check_plus_shape(i, j):
+        return all(board[i + 1][j + k] == player for k in range(3)) and all(
+            board[i + k][j + 1] == player for k in range(3)
+        )
+
+    # Check for L shapes
+    for size in range(2, IN_A_ROW):
+        for i in range(N - size + 1):
+            for j in range(M - size + 1):
+                subgrid = [row[j : j + size] for row in board[i : i + size]]
+                if check_l_shape(subgrid):
+                    l_count += 1 * size
+
+    # Check for plus shapes
+    for i in range(N - 2):
+        for j in range(M - 2):
+            if check_plus_shape(i, j):
+                plus_count += 1
+
+    return int(l_count + plus_count)
 
 
 def evaluate(board, player, depth_reached=0):
@@ -289,14 +319,14 @@ def evaluate(board, player, depth_reached=0):
 
     center_pieces = count_center_pieces(board, 1) - count_center_pieces(board, -1)
 
-    # x_shapes = count_x_shapes(board, 1) - count_x_shapes(board, -1)
+    # shapes = count_shapes(board, 1) - count_shapes(board, -1)
 
     v = int(
         (50 * num_threes)
         + (30 * num_twos)
-        + (15 * center_pieces)
-        # + (10 * bottom_center_preference * min(M * N - num_total_pieces, 0))
-        # + (100 * x_shapes)
+        + (0.25 * center_pieces * max(M * N - num_total_pieces, 0))
+        # + (5 * bottom_center_preference * max(M * N - num_total_pieces, 0))
+        # + (20 * shapes)
         + random.randint(-5, 5)
     )
 
@@ -312,6 +342,11 @@ def evaluate(board, player, depth_reached=0):
     return v
 
 
+def undo_move(board, col_num, row_idx):
+    board[col_num][row_idx] = 0
+    return board
+
+
 def minimax(board, depth, alpha, beta, maximizingPlayer, depth_reached=0):
     depth_reached += 1
     game_over_status = brute_force_game_over(board)
@@ -323,18 +358,27 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, depth_reached=0):
     ):
         return evaluate(
             board,
-            AI_PLAYER if maximizingPlayer else HUMAN_PLAYER,
+            1 if maximizingPlayer else -1,
             depth_reached=depth_reached,
         )
 
+    legal_moves = get_legal_moves(board)
+    player = 1 if maximizingPlayer else 0
+    legal_moves.sort(
+        key=lambda x: evaluate(make_move(copy.deepcopy(board), x, player)[0], player),
+        reverse=(player == 1),  # descending for max player and ascending for min player
+    )
+
     if maximizingPlayer:
         maxEval = -math.inf
-        for move in get_legal_moves(board):
-            sim_board = copy.deepcopy(board)
-            sim_board, _ = make_move(sim_board, move, AI_PLAYER)
+        for move in legal_moves:
+            sim_board, col_idx, row_idx = make_move_minimax(
+                board, move, 1
+            )  # Max player is always 1
             eval = minimax(
                 sim_board, depth - 1, alpha, beta, False, depth_reached=depth_reached
             )
+            sim_board = undo_move(sim_board, col_idx, row_idx)
             maxEval = max(maxEval, eval)
             alpha = max(alpha, eval)
             if beta <= alpha:
@@ -342,12 +386,14 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, depth_reached=0):
         return maxEval
     else:
         minEval = math.inf
-        for move in get_legal_moves(board):
-            sim_board = copy.deepcopy(board)
-            sim_board, _ = make_move(sim_board, move, HUMAN_PLAYER)
+        for move in legal_moves:
+            sim_board, col_idx, row_idx = make_move_minimax(
+                board, move, -1
+            )  # Min player is always -1
             eval = minimax(
                 sim_board, depth - 1, alpha, beta, True, depth_reached=depth_reached
             )
+            sim_board = undo_move(sim_board, col_idx, row_idx)
             minEval = min(minEval, eval)
             beta = min(beta, eval)
             if beta <= alpha:
@@ -362,7 +408,7 @@ def AI(board, player, depth):
     # order moves by best to worst using the heuristic
     legal_moves.sort(
         key=lambda x: evaluate(make_move(copy.deepcopy(board), x, player)[0], player),
-        reverse=player == 1,  # descending for max player and ascending for min player
+        reverse=(player == 1),  # descending for max player and ascending for min player
     )
 
     for move in legal_moves:
@@ -370,28 +416,32 @@ def AI(board, player, depth):
         sim_board = copy.deepcopy(board)
         sim_board, _ = make_move(sim_board, move, player)
         boardValue = minimax(
-            sim_board, depth - 1, -math.inf, math.inf, player == HUMAN_PLAYER
+            sim_board,
+            depth - 1,
+            -math.inf,
+            math.inf,
+            (
+                AI_PLAYER != 1
+            ),  # reversed since next player is always the opposite of the current player
         )
 
-        if player == AI_PLAYER and (
-            (boardValue > bestValue) if AI_PLAYER == 1 else (boardValue < bestValue)
-        ):
+        if player == 1 and (boardValue > bestValue):
             bestValue = boardValue
             bestMove = move
-        elif player == HUMAN_PLAYER and (
-            (boardValue < bestValue) if HUMAN_PLAYER == -1 else boardValue > bestValue
-        ):
+
+        elif player == -1 and (boardValue < bestValue):
             bestValue = boardValue
             bestMove = move
 
     if bestMove is None:
-        print("Ai couldnt find a move. likely due to a 0 eval on all moves")
+        print("AI CANT find a move. likely due to a 0 eval on all moves")
         return get_legal_moves(board)[0]  # failsafe
     return bestMove
 
 
-def human_vs_ai(who_moves_first=HUMAN_PLAYER, max_depth=5):
+def human_vs_ai(who_moves_first=HUMAN_PLAYER, max_depth=4):
     files = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    last_file = files[N - 1]
     board = get_blank_board()
     current_player = who_moves_first
     game_status = 0  # 0 means the game is ongoing
@@ -404,19 +454,19 @@ def human_vs_ai(who_moves_first=HUMAN_PLAYER, max_depth=5):
             while move not in get_legal_moves(board):
                 try:
                     print()
-                    user_input = (
-                        input(f"Your move (A-{files[N - 1]}): ").strip().upper()
-                    )
+                    user_input = input(f"Your move (A-{last_file}): ").strip().upper()
                     move = files.index(user_input)
                 except (ValueError, IndexError):
-                    print("Invalid move. Please choose a column from A to G.")
+                    print(
+                        f"Invalid move. Please choose a column from A to {last_file}."
+                    )
 
             board, game_status = make_move(board, move, HUMAN_PLAYER)
         else:
             print("\nAI is thinking...")
             move = AI(board, AI_PLAYER, max_depth)  # Adjust depth as needed
             board, game_status = make_move(board, move, AI_PLAYER)
-            print(f"AI moved: {list('ABCDEFG')[move]}")
+            print(f"AI moved: {files[move]}")
 
         # Switch player
         current_player = AI_PLAYER if current_player == HUMAN_PLAYER else HUMAN_PLAYER
@@ -429,7 +479,7 @@ def human_vs_ai(who_moves_first=HUMAN_PLAYER, max_depth=5):
     if game_status == HUMAN_PLAYER:
         print("Congratulations! You win!")
     elif game_status == AI_PLAYER:
-        print("AI wins. Better luck next time!")
+        print("\nThe AI Won! Better luck next time.")
     else:
         print("It's a draw!")
 
