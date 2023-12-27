@@ -87,56 +87,48 @@ def human_vs_ai():
     turn = HUMAN_PLAYER
 
     while not game_over:
-        if turn == HUMAN_PLAYER and not game_over:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    sys.exit()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                sys.exit()
 
-                if (
-                    event.type == pygame.MOUSEBUTTONDOWN
-                    and not game_over
-                    and turn
-                    == HUMAN_PLAYER  # this isnt stopping the human from continuing to play and buffer moves
-                ):
-                    # pygame.event.set_blocked(pygame.MOUSEBUTTONDOWN)
+        if turn == HUMAN_PLAYER and not game_over:
+            pygame.event.set_allowed(pygame.MOUSEBUTTONDOWN)  # Enable mouse clicks
+
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONDOWN:
                     xpos = event.pos[0]
                     col = int(math.floor(xpos / SQUARESIZE))
                     legal_moves = get_legal_moves(board)
 
-                    if not legal_moves:
-                        game_over = True
-                        status = 0
-
-                    elif col in legal_moves:
+                    if col in legal_moves:
                         board, status = make_move(board, col, HUMAN_PLAYER)
+                        draw_board(board)
                         if status != 0:
                             game_over = True
-                        turn = AI_PLAYER
-                    else:
-                        print(f"You can NOT legally move to {col}")
+                        else:
+                            turn = AI_PLAYER
+                            pygame.time.wait(100)  # Wait for half a second
+                        break  # Break after the move is made
 
-                    draw_board(board)
+        elif turn == AI_PLAYER and not game_over:
+            pygame.event.set_blocked(pygame.MOUSEBUTTONDOWN)  # Disable mouse clicks
 
-        if turn == AI_PLAYER and not game_over:
-            legal_moves = get_legal_moves(board)
-            if not legal_moves:
-                status = 0
-                break
+            # AI makes its move
             col = AI(board, AI_PLAYER, 4)  # Adjust the depth as needed
             board, status = make_move(board, col, AI_PLAYER)
-            # pygame.event.set_allowed(pygame.MOUSEBUTTONDOWN)
+            draw_board(board)
             if status != 0:
                 game_over = True
-            turn = HUMAN_PLAYER
+            else:
+                turn = HUMAN_PLAYER
 
-            draw_board(board)
+    # Post-game messages and cleanup
     if status != 0:
         print(f"Game Over! {'Yellow' if status == 1 else 'Red'} wins!")
     else:
         print("Draw! No More Moves")
 
-    # Game Over
-    pygame.time.wait(3000)
+    pygame.time.wait(1000)
     pygame.quit()
 
 
@@ -177,7 +169,7 @@ def ai_vs_ai():
     print(f"Game Over! Player {status} wins!")
 
     # Game Over
-    pygame.time.wait(3000)
+    pygame.time.wait(1000)
     pygame.quit()
 
 
