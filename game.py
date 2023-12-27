@@ -269,11 +269,11 @@ def minimax(board, depth, alpha, beta, maximizingPlayer, depth_reached=0):
         return evaluate(
             board,
             1 if maximizingPlayer else -1,
-            depth_reached=depth_reached,
+            depth_reached,
         )
 
     legal_moves = get_legal_moves(board)
-    player = 1 if maximizingPlayer else 0
+    player = 1 if maximizingPlayer else -1
     legal_moves.sort(
         key=lambda x: evaluate(make_move(copy.deepcopy(board), x, player)[0], player),
         reverse=(player == 1),  # descending for max player and ascending for min player
@@ -331,8 +331,8 @@ def AI(board, player, depth):
             -math.inf,
             math.inf,
             (
-                AI_PLAYER != 1
-            ),  # reversed since next player is always the opposite of the current player
+                player == -1
+            ),  # TODO: this is becuase the player started as max then we switch to min.
         )
 
         if player == 1 and (boardValue > bestValue):
