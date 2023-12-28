@@ -5,9 +5,8 @@ import time
 import pygame
 
 from constants import AI_PLAYER, HUMAN_PLAYER, IN_A_ROW, M, N
-from game import *  # Importing your Connect Four logic
+from game import *
 
-# Pygame Initialization
 pygame.init()
 
 
@@ -30,7 +29,6 @@ YELLOW = (255, 255, 0)
 BLACK = (0, 0, 0)
 
 
-# Setting up the display
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Connect Four AI")
 
@@ -95,6 +93,26 @@ def highlight_column(col, board):
     draw_board(board)  # Redraw the board to remove the highlight
 
 
+def animate_falling_piece(board, col, row, piece_color):
+    for animation_row in range(-1, row + 1):
+        # Draw the board with an empty space where the piece will fall
+        draw_board(board)
+
+        # Draw the falling piece starting from the top
+        pygame.draw.circle(
+            screen,
+            piece_color,
+            (
+                int(col * SQUARESIZE + SQUARESIZE / 2),
+                HEIGHT - int((M - animation_row) * SQUARESIZE + SQUARESIZE / 2),
+            ),
+            SQUARESIZE // 2 - 5,
+        )
+
+        pygame.display.update()
+        pygame.time.wait(20)  # Control the speed of the animation
+
+
 def human_vs_ai():
     board = get_blank_board()
     draw_board(board)
@@ -116,6 +134,19 @@ def human_vs_ai():
                 if col in legal_moves:
                     # Highlight the column
                     highlight_column(col, board)
+
+                    # Temporarily insert the piece to get the row index, then remove it
+                    temp_board, _, row_idx = insert_piece_optimized(
+                        board.copy(), col, HUMAN_PLAYER
+                    )
+                    board[col][
+                        row_idx
+                    ] = 0  # Remove the piece after getting the row index
+
+                    # Animate the falling piece
+                    animate_falling_piece(
+                        board, col, row_idx, RED if HUMAN_PLAYER == -1 else YELLOW
+                    )
 
                     # Process human move
                     board, status = make_move(board, col, HUMAN_PLAYER)
