@@ -104,42 +104,39 @@ def human_vs_ai():
     turn = HUMAN_PLAYER
 
     while not game_over:
-        if turn == HUMAN_PLAYER:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    sys.exit()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                sys.exit()
 
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    xpos = event.pos[0]
-                    col = int(math.floor(xpos / SQUARESIZE))
+            if turn == HUMAN_PLAYER and event.type == pygame.MOUSEBUTTONDOWN:
+                xpos = event.pos[0]
+                col = int(math.floor(xpos / SQUARESIZE))
 
-                    legal_moves = get_legal_moves(board)
-                    if col in legal_moves:
-                        # Highlight the column
-                        highlight_column(col, board)
+                legal_moves = get_legal_moves(board)
+                if col in legal_moves:
+                    # Highlight the column
+                    highlight_column(col, board)
 
-                        # Process human move
-                        board, status = make_move(board, col, HUMAN_PLAYER)
-                        draw_board(board)
-                        if status != 0:
-                            game_over = True
+                    # Process human move
+                    board, status = make_move(board, col, HUMAN_PLAYER)
+                    draw_board(board)
+                    if status != 0:
+                        game_over = True
 
-                        # Clear event queue to avoid processing additional clicks
-                        pygame.event.clear()
+                    turn = AI_PLAYER
+                    break  # Break from the for loop after processing the human move
 
-                        # Hand over to AI
-                        turn = AI_PLAYER
-                        break  # Exit the event loop after processing the human move
-
-        elif turn == AI_PLAYER:
+        if turn == AI_PLAYER:
             # AI makes its move
-            col = AI(board, AI_PLAYER, 5)  # Adjust the depth as needed
+            col = AI(board, AI_PLAYER, 4)  # Adjust the depth as needed
             board, status = make_move(board, col, AI_PLAYER)
             draw_board(board)
             if status != 0:
                 game_over = True
-            else:
-                turn = HUMAN_PLAYER
+            turn = HUMAN_PLAYER
+
+            # Clear event queue after AI move to ensure no buffered human moves
+            pygame.event.clear()
 
     # Post-game messages and cleanup
     if status != 0:
