@@ -78,6 +78,23 @@ def draw_board(board):
     pygame.display.update()
 
 
+def highlight_column(col, board):
+    highlight_color = (128, 128, 128)  # RGB for grey
+
+    # Create a new surface with per-pixel alpha
+    # Set the surface height to cover the entire column, including the bottom row
+    s = pygame.Surface((SQUARESIZE, HEIGHT), pygame.SRCALPHA)
+    s.fill((*highlight_color, 50))  # Semi-transparent grey
+
+    # Blit the surface starting from the top of the column
+    screen.blit(s, (col * SQUARESIZE, 0))
+
+    pygame.display.update()
+    pygame.time.wait(300)  # Duration of the highlight
+
+    draw_board(board)  # Redraw the board to remove the highlight
+
+
 def human_vs_ai():
     board = get_blank_board()
     draw_board(board)
@@ -87,34 +104,36 @@ def human_vs_ai():
     turn = HUMAN_PLAYER
 
     while not game_over:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                sys.exit()
-
-        if turn == HUMAN_PLAYER and not game_over:
-            pygame.event.set_allowed(pygame.MOUSEBUTTONDOWN)  # Enable mouse clicks
-
+        if turn == HUMAN_PLAYER:
             for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    sys.exit()
+
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     xpos = event.pos[0]
                     col = int(math.floor(xpos / SQUARESIZE))
-                    legal_moves = get_legal_moves(board)
 
+                    legal_moves = get_legal_moves(board)
                     if col in legal_moves:
+                        # Highlight the column
+                        highlight_column(col, board)
+
+                        # Process human move
                         board, status = make_move(board, col, HUMAN_PLAYER)
                         draw_board(board)
                         if status != 0:
                             game_over = True
-                        else:
-                            turn = AI_PLAYER
-                            pygame.time.wait(100)  # Wait for half a second
-                        break  # Break after the move is made
 
-        elif turn == AI_PLAYER and not game_over:
-            pygame.event.set_blocked(pygame.MOUSEBUTTONDOWN)  # Disable mouse clicks
+                        # Clear event queue to avoid processing additional clicks
+                        pygame.event.clear()
 
+                        # Hand over to AI
+                        turn = AI_PLAYER
+                        break  # Exit the event loop after processing the human move
+
+        elif turn == AI_PLAYER:
             # AI makes its move
-            col = AI(board, AI_PLAYER, 4)  # Adjust the depth as needed
+            col = AI(board, AI_PLAYER, 5)  # Adjust the depth as needed
             board, status = make_move(board, col, AI_PLAYER)
             draw_board(board)
             if status != 0:
@@ -128,7 +147,7 @@ def human_vs_ai():
     else:
         print("Draw! No More Moves")
 
-    pygame.time.wait(1000)
+    pygame.time.wait(3000)
     pygame.quit()
 
 
